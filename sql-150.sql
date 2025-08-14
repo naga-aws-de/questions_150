@@ -227,6 +227,93 @@ join avg_spend  ase on cs.total_spend > ase.avg_spend;
 # SELECT * FROM orders06;(order_id, customer_id, order_date, amount)
 
 
+-- ----------------------------------------------------------------------------------------------------------------------------------------------------
+
+# 07 How would you identify duplicate entries in a SQL in given table employees columns are  emp_id, name, department, salary
+SELECT * FROM employees07;
+drop table employees07_bkp;
+create table employees07_bkp as select * from employees07;
+
+-- identify duplicate records
+SELECT name, department, salary, COUNT(*) AS cnt
+FROM employees07
+GROUP BY name, department, salary
+HAVING COUNT(*) > 1;
+
+
+DELETE e1
+FROM employees07_bkp e1
+INNER JOIN (
+    SELECT emp_id,
+           ROW_NUMBER() OVER (PARTITION BY name, department, salary ORDER BY emp_id) AS rn
+    FROM employees07_bkp
+) e2 ON e1.emp_id = e2.emp_id
+WHERE e2.rn > 1;
+
+
+select * from employees07_bkp;
+
+-- ---------------------------------------------------------------------------------------------------------------------------------------
+
+# 08  -- Write a SQL query to find all products that have not been sold in the last six months.  
+
+SELECT p.product_id, p.product_name, p.category, p.price
+FROM products08 p
+LEFT JOIN sales08 s
+  ON p.product_id = s.product_id
+     AND s.sale_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+WHERE s.product_id IS NULL;
+
+-- Find products whose total monthly sales quantity has decreased consecutively over the last 3 months.
+
+with monthly_sales as (
+select 
+p.product_id,
+p.product_name,
+p.category,
+date_format(s.sale_date,"%Y-%m") as month,
+sum(s.quantity) as total_quantity
+from products08 p
+join sales08 s on p.product_id=s.product_id
+group by 1,2,3,4
+),
+ranked_sales as
+(
+select *,
+lag(total_quantity,1) over(partition by product_id order by month) as prev_month_1,
+lag(total_quantity,2) over(partition by product_id order by month) as prev_month_2
+from monthly_sales
+)
+select product_id,product_name,category
+from ranked_sales 
+where prev_month_2>prev_month_1
+and prev_month_1 > total_quantity
+group by 1,2,3;
+;
+
+-- Find the top 3 products in each category by total revenue (price * quantity_sold) over the last 6 months.
+
+with revenue as 
+(
+select 
+p.product_id,p.product_name,p.category,sum(p.price*s.quantity) as revenue_per_product
+from products08 p
+left join sales08 s on p.product_id=s.product_id
+where s.sale_date >=date_sub(curdate(),interval 30 month)
+group by 1,2,3
+),
+ranked_revenue as
+(select *,row_number() over(partition by category order by revenue_per_product desc) as rev_rn
+from revenue)
+select * from ranked_revenue where rev_rn>1;
+-- SELECT * FROM products08;(product_id,product_name, category, price)
+-- SELECT * FROM sales08;(sale_id,product_id, sale_date, quantity)
+
+
+
+
+
+
 
 
 
